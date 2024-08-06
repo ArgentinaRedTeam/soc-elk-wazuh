@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.2
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - wazuhnet
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.2
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    ports:
+      - "5601:5601"
+    networks:
+      - wazuhnet
+
+  wazuh-manager:
+    image: opennix/wazuh-agent:latest
+    container_name: wazuh-manager
+    ports:
+      - "1514:1514"
+      - "1515:1515"
+    volumes:
+      - wazuh-manager-data:/var/ossec/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - wazuhnet
+
+  wazuh-agent:
+    image: opennix/wazuh-agent:latest
+    container_name: wazuh-agent
+    environment:
+      - WAZUH_MANAGER=wazuh-manager
+    ports:
+      - "1514:1514/udp"
+      - "1515:1515"
+    volumes:
+      - wazuh-agent-data:/var/ossec/data
+    networks:
+      - wazuhnet
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.14.2
+    container_name: filebeat
+    user: root
+    volumes:
+      - /var/log/:/var/log/
+      - filebeat-data:/usr/share/filebeat/data
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml
+    networks:
+      - wazuhnet
+    depends_on:
+      - elasticsearch
+      - kibana
+
+volumes:
+  elasticsearch-data:
+  kibana-data:
+  wazuh-manager-data:
+  wazuh-agent-data:
+  filebeat-data:
+
+networks:
+  wazuhnet:
+    driver: bridge
